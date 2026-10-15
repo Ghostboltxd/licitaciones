@@ -1,6 +1,7 @@
 import os
 import json
 import datetime
+import sys
 import httpx
 
 TICKET = os.environ["MP_TICKET"]
@@ -13,6 +14,12 @@ def bajar_licitaciones():
         params={"estado": "activas", "ticket": TICKET},
         timeout=60,
     )
+    print("== DIAGNOSTICO ==")
+    print("Ticket: largo", len(TICKET), "| empieza con", TICKET[:4])
+    print("HTTP status:", respuesta.status_code)
+    print("Respuesta cruda (primeros 400 caracteres):")
+    print(respuesta.text[:400])
+    print("=================")
     respuesta.raise_for_status()
     return respuesta.json()
 
@@ -20,6 +27,11 @@ def bajar_licitaciones():
 def main():
     hoy = datetime.date.today().strftime("%d%m%Y")
     datos = bajar_licitaciones()
+
+    if "Listado" not in datos:
+        print("ERROR: la respuesta no trae 'Listado'. La API devolvio un error.")
+        sys.exit(1)
+
     licitaciones = datos.get("Listado") or []
 
     print(f"Fecha: {hoy}")
