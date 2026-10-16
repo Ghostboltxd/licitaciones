@@ -81,7 +81,7 @@ def clasificar(det):
 
 
 def main():
-    hoy = datetime.date.today().strftime("%d%m%Y")
+    hoy = datetime.datetime.now(ZoneInfo("America/Santiago")).strftime("%d%m%Y")
     print("Fecha:", hoy)
 
     listado = bajar_listado(hoy)
