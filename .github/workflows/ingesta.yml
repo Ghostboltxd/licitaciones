@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: "0 10 * * *"
   workflow_dispatch:
+  push:
 
 jobs:
   ingesta:
@@ -18,7 +19,7 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-     - name: Ejecutar ingesta
+      - name: Ejecutar ingesta
         env:
           MP_TICKET: ${{ secrets.MP_TICKET }}
           MAIL_USER: ${{ secrets.MAIL_USER }}
