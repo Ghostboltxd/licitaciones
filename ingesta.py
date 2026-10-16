@@ -2,8 +2,11 @@ import os
 import json
 import datetime
 import time
+import smtplib
 import httpx
 from zoneinfo import ZoneInfo
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 TICKET = os.environ["MP_TICKET"].strip()
 BASE = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
@@ -20,21 +23,12 @@ NICHOS = {
             "impresi", "imprenta", "fotocopi", "anillad", "encuadern",
             "gigantograf", "plotter", "ploteo", "señaletic", "senaletic",
             "letrero", "afiche", "follet", "volante", "talonario",
-            "formulario", "credencial", "toner", "tóner", "cartucho",
-            "sticker", "adhesiv", "etiquet", "serigraf", "sublima",
-            "grafic", "gráfic", "publicaci", "catalogo", "catálogo",
-            "pendon", "pendón", "troquelad", "laminad", "plastificad",
-            "editorial", "tinta", "papeleria", "papelería", "difusion",
+            "formulario", "credencial", "sticker", "adhesiv", "etiquet",
+            "serigraf", "sublima", "grafic", "gráfic", "publicaci",
+            "catalogo", "catálogo", "pendon", "pendón", "troquelad",
+            "laminad", "plastificad", "editorial", "difusion",
         ],
-        "categorias": ["8212", "82101500", "5510", "141115", "441031", "4510"],
-    },
-    "aseo_insumos": {
-        "palabras": [
-            "aseo", "limpieza", "desinfect", "jabon", "jabón", "cloro",
-            "detergente", "higienic", "toalla", "basura", "guante",
-            "esponja", "lavaloza", "confort", "alcohol gel",
-        ],
-        "categorias": ["47", "141117"],
+        "categorias": ["8212", "82101500"],
     },
 }
 # =================================================
@@ -112,6 +106,79 @@ def clasificar(det):
     return encontrados
 
 
+def fmt_monto(m):
+    if m is None:
+        return "No publicado"
+    return "$" + f"{int(m):,}".replace(",", ".")
+
+
+def fmt_cierre(s):
+    if not s:
+        return "-"
+    try:
+        return datetime.datetime.fromisoformat(s).strftime("%d-%m %H:%M")
+    except ValueError:
+        return s
+
+
+def construir_html(regs, hoy):
+    if not regs:
+        return (f"<div style='font-family:Arial'><h2>Licitaciones de impresion</h2>"
+                f"<p>Hoy ({hoy}) no hay licitaciones de impresion abiertas.</p></div>")
+    filas = ""
+    for r in regs:
+        enlace = ("https://www.mercadopublico.cl/Procurement/Modules/RFB/"
+                  "DetailsAcquisition.aspx?idlicitacion=" + str(r["codigo"]))
+        filas += (
+            "<tr>"
+            f"<td style='padding:10px;border-bottom:1px solid #eee'>"
+            f"<b>{r['nombre']}</b><br>"
+            f"<span style='color:#666;font-size:13px'>{r['organismo']} - {r['region']}</span>"
+            "</td>"
+            f"<td style='padding:10px;border-bottom:1px solid #eee;white-space:nowrap'>"
+            f"<b>{fmt_monto(r['monto'])}</b></td>"
+            f"<td style='padding:10px;border-bottom:1px solid #eee;white-space:nowrap'>"
+            f"{fmt_cierre(r['cierre'])}</td>"
+            f"<td style='padding:10px;border-bottom:1px solid #eee'>"
+            f"<a href='{enlace}'>Ver ficha</a></td>"
+            "</tr>"
+        )
+    return f"""
+    <div style="font-family:Arial,sans-serif;max-width:800px">
+      <h2 style="color:#0a3d62;margin-bottom:4px">Licitaciones de impresion abiertas</h2>
+      <p style="color:#666;margin-top:0">Fecha: {hoy} &nbsp;|&nbsp; Total: {len(regs)}</p>
+      <table style="border-collapse:collapse;width:100%">
+        <tr style="background:#f4f4f4;text-align:left">
+          <th style="padding:10px">Licitacion</th>
+          <th style="padding:10px">Monto</th>
+          <th style="padding:10px">Cierra</th>
+          <th style="padding:10px"></th>
+        </tr>
+        {filas}
+      </table>
+      <p style="color:#999;font-size:12px">Fuente: Direccion ChileCompra - API Mercado Publico</p>
+    </div>
+    """
+
+
+def enviar_correo(asunto, html):
+    usuario = os.environ.get("MAIL_USER")
+    clave = os.environ.get("MAIL_PASS")
+    destino = os.environ.get("MAIL_TO")
+    if not (usuario and clave and destino):
+        print("Sin configuracion de correo. No se envia.")
+        return
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = asunto
+    msg["From"] = usuario
+    msg["To"] = destino
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
+        s.login(usuario, clave)
+        s.sendmail(usuario, [destino], msg.as_string())
+    print("Correo enviado a", destino)
+
+
 def main():
     hoy = datetime.datetime.now(ZoneInfo("America/Santiago")).strftime("%d%m%Y")
     print("Fecha (hora Chile):", hoy)
@@ -177,6 +244,10 @@ def main():
         with open(archivo, "w", encoding="utf-8") as f:
             json.dump(regs, f, ensure_ascii=False, indent=2)
         print(f"{nicho}: {len(regs)} licitaciones -> {archivo}")
+
+    regs = resultados["impresion"]
+    html = construir_html(regs, hoy)
+    enviar_correo(f"Licitaciones de impresion - {hoy} ({len(regs)})", html)
 
 
 if __name__ == "__main__":
