@@ -3,6 +3,7 @@ import json
 import datetime
 import time
 import httpx
+from zoneinfo import ZoneInfo
 
 TICKET = os.environ["MP_TICKET"].strip()
 BASE = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
