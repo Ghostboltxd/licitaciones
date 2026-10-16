@@ -18,9 +18,12 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Ejecutar ingesta
+     - name: Ejecutar ingesta
         env:
           MP_TICKET: ${{ secrets.MP_TICKET }}
+          MAIL_USER: ${{ secrets.MAIL_USER }}
+          MAIL_PASS: ${{ secrets.MAIL_PASS }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
         run: python ingesta.py
 
       - name: Guardar resultados
